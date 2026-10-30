@@ -9,6 +9,7 @@ var joy := Vector2.ZERO
 var touch_origin := Vector2.ZERO
 var touch_id := -1
 var hud: Label
+var follow_camera: Camera3D
 
 func _ready() -> void:
 	_make_world()
@@ -16,6 +17,12 @@ func _ready() -> void:
 	enemy = _make_actor(Color(0.12, 0.12, 0.17), Vector3(4, 0, 0), true)
 	_make_camera()
 	_make_hud()
+
+func _process(delta: float) -> void:
+	if is_instance_valid(player) and is_instance_valid(follow_camera):
+		var desired := player.global_position + Vector3(0, 4.1, 7.5)
+		follow_camera.global_position = follow_camera.global_position.lerp(desired, clampf(delta * 5.0, 0.0, 1.0))
+		follow_camera.look_at(player.global_position + Vector3(0, 1.25, 0), Vector3.UP)
 
 func _make_world() -> void:
 	var light := DirectionalLight3D.new()
@@ -32,6 +39,8 @@ func _make_world() -> void:
 	_make_box(Vector3(0,-0.25,0), Vector3(24,0.5,24), Color(0.43,0.46,0.48))
 	for i in range(5):
 		_make_box(Vector3(-8+i*4,1,-11), Vector3(1.5,2,1), Color(0.57,0.36,0.25))
+	for p in [Vector3(-5,0.6,-5), Vector3(5,0.6,-5), Vector3(-6,0.6,5), Vector3(6,0.6,4)]:
+		_make_box(p, Vector3(2.5,1.2,1.5), Color(0.28,0.38,0.48))
 	for x in [-12.0, 12.0]:
 		_make_box(Vector3(x,1,0), Vector3(0.5,2,24), Color(0.65,0.64,0.59))
 	for z in [-12.0, 12.0]:
@@ -59,16 +68,18 @@ func _make_actor(color: Color, pos: Vector3, is_enemy: bool) -> CharacterBody3D:
 	var actor := CharacterBody3D.new()
 	actor.position = pos
 	actor.set_script(EnemyScript if is_enemy else PlayerScript)
-	var mesh := MeshInstance3D.new()
-	var capsule := CapsuleMesh.new()
-	capsule.radius = 0.42
-	capsule.height = 1.8
-	mesh.mesh = capsule
-	mesh.position.y = 0.9
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mesh.material_override = mat
-	actor.add_child(mesh)
+	var visual := Node3D.new()
+	visual.name = "SpyVisual"
+	actor.add_child(visual)
+	_spy_part(visual, Vector3(0, 0.94, 0), Vector3(0.72, 0.88, 0.4), color)
+	_spy_part(visual, Vector3(0, 1.58, 0), Vector3(0.48, 0.48, 0.46), Color(0.96, 0.79, 0.64))
+	_spy_part(visual, Vector3(0, 1.91, 0), Vector3(0.8, 0.13, 0.73), color)
+	_spy_part(visual, Vector3(0, 2.03, 0), Vector3(0.47, 0.25, 0.47), color)
+	_spy_part(visual, Vector3(-0.49, 1.03, 0), Vector3(0.23, 0.72, 0.27), color)
+	_spy_part(visual, Vector3(0.49, 1.03, 0), Vector3(0.23, 0.72, 0.27), color)
+	_spy_part(visual, Vector3(-0.2, 0.38, 0), Vector3(0.27, 0.72, 0.31), color)
+	_spy_part(visual, Vector3(0.2, 0.38, 0), Vector3(0.27, 0.72, 0.31), color)
+	_spy_part(visual, Vector3(0, 1.62, -0.25), Vector3(0.54, 0.16, 0.1), Color(0.08,0.08,0.1))
 	var collider := CollisionShape3D.new()
 	var shape := CapsuleShape3D.new()
 	shape.radius = 0.42
@@ -79,18 +90,30 @@ func _make_actor(color: Color, pos: Vector3, is_enemy: bool) -> CharacterBody3D:
 	add_child(actor)
 	return actor
 
+func _spy_part(parent: Node3D, pos: Vector3, size: Vector3, color: Color) -> void:
+	var mesh := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = size
+	mesh.mesh = box
+	mesh.position = pos
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	mesh.material_override = mat
+	parent.add_child(mesh)
+
 func _make_camera() -> void:
-	var camera := Camera3D.new()
-	camera.position = Vector3(0, 17, 15)
-	camera.rotation_degrees.x = -48
-	camera.current = true
-	add_child(camera)
+	follow_camera = Camera3D.new()
+	follow_camera.position = player.position + Vector3(0, 4.1, 7.5)
+	follow_camera.fov = 68.0
+	follow_camera.current = true
+	add_child(follow_camera)
+	follow_camera.look_at(player.position + Vector3(0, 1.25, 0), Vector3.UP)
 
 func _make_hud() -> void:
 	var layer := CanvasLayer.new()
 	add_child(layer)
 	hud = Label.new()
-	hud.text = "ESPÍAS EN GUERRA | Mueve: WASD o joystick | Trampa: ESPACIO"
+	hud.text = "ESPÍAS EN GUERRA 3D | Tercera persona | Joystick izquierdo | Trampa"
 	hud.position = Vector2(18, 18)
 	hud.add_theme_font_size_override("font_size", 24)
 	layer.add_child(hud)
