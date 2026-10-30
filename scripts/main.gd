@@ -90,15 +90,34 @@ func _make_actor(color: Color, pos: Vector3, is_enemy: bool) -> CharacterBody3D:
 	var visual := Node3D.new()
 	visual.name = "SpyVisual"
 	actor.add_child(visual)
-	_spy_part(visual, Vector3(0, 0.94, 0), Vector3(0.72, 0.88, 0.4), color)
-	_spy_part(visual, Vector3(0, 1.58, 0), Vector3(0.48, 0.48, 0.46), Color(0.96, 0.79, 0.64))
-	_spy_part(visual, Vector3(0, 1.91, 0), Vector3(0.8, 0.13, 0.73), color)
-	_spy_part(visual, Vector3(0, 2.03, 0), Vector3(0.47, 0.25, 0.47), color)
-	_spy_part(visual, Vector3(-0.49, 1.03, 0), Vector3(0.23, 0.72, 0.27), color)
-	_spy_part(visual, Vector3(0.49, 1.03, 0), Vector3(0.23, 0.72, 0.27), color)
-	_spy_part(visual, Vector3(-0.2, 0.38, 0), Vector3(0.27, 0.72, 0.31), color)
-	_spy_part(visual, Vector3(0.2, 0.38, 0), Vector3(0.27, 0.72, 0.31), color)
-	_spy_part(visual, Vector3(0, 1.62, -0.25), Vector3(0.54, 0.16, 0.1), Color(0.08,0.08,0.1))
+	var coat := color
+	var detail := Color(0.17, 0.17, 0.20) if is_enemy else Color(0.95, 0.95, 0.91)
+	var skin := Color(0.94, 0.88, 0.78)
+	var ink := Color(0.06, 0.06, 0.07)
+	# Long stylized trench coat with split tails and broad shoulders.
+	_spy_part(visual, Vector3(0, 1.06, 0), Vector3(0.69, 0.91, 0.43), coat)
+	_spy_part(visual, Vector3(-0.19, 0.54, 0.04), Vector3(0.31, 0.43, 0.43), coat)
+	_spy_part(visual, Vector3(0.19, 0.54, 0.04), Vector3(0.31, 0.43, 0.43), coat)
+	_spy_part(visual, Vector3(-0.24, 1.32, -0.23), Vector3(0.28, 0.35, 0.05), detail)
+	_spy_part(visual, Vector3(0.24, 1.32, -0.23), Vector3(0.28, 0.35, 0.05), detail)
+	_spy_part(visual, Vector3(0, 1.17, -0.265), Vector3(0.10, 0.36, 0.035), ink if is_enemy else Color(0.16,0.16,0.17))
+	_spy_part(visual, Vector3(0, 0.83, -0.25), Vector3(0.70, 0.075, 0.06), detail)
+	for x in [-0.47, 0.47]:
+		_spy_part(visual, Vector3(x, 1.08, 0), Vector3(0.24, 0.75, 0.31), coat)
+		_spy_part(visual, Vector3(x, 0.65, 0), Vector3(0.24, 0.17, 0.29), detail)
+	for x in [-0.20, 0.20]:
+		_spy_part(visual, Vector3(x, 0.35, 0), Vector3(0.25, 0.66, 0.29), coat)
+		_spy_part(visual, Vector3(x, 0.12, -0.10), Vector3(0.30, 0.18, 0.47), detail)
+	# Rounded head, deep eye sockets, and exaggerated pointed mask.
+	_spy_ellipsoid(visual, Vector3(0, 1.72, -0.01), Vector3(0.49, 0.53, 0.47), skin)
+	for x in [-0.14, 0.14]:
+		_spy_ellipsoid(visual, Vector3(x, 1.79, -0.235), Vector3(0.16, 0.18, 0.10), ink)
+		_spy_ellipsoid(visual, Vector3(x, 1.79, -0.303), Vector3(0.055, 0.07, 0.03), detail)
+	_spy_beak(visual, skin)
+	# Distinctive wide-brim hat, cylindrical crown, dark hatband.
+	_spy_cylinder(visual, Vector3(0, 2.07, 0), 0.62, 0.075, coat)
+	_spy_cylinder(visual, Vector3(0, 2.23, 0), 0.34, 0.30, coat)
+	_spy_cylinder(visual, Vector3(0, 2.14, 0), 0.348, 0.075, detail)
 	var collider := CollisionShape3D.new()
 	var shape := CapsuleShape3D.new()
 	shape.radius = 0.42
@@ -119,6 +138,50 @@ func _spy_part(parent: Node3D, pos: Vector3, size: Vector3, color: Color) -> voi
 	mat.albedo_color = color
 	mesh.material_override = mat
 	parent.add_child(mesh)
+
+func _spy_ellipsoid(parent: Node3D, pos: Vector3, size: Vector3, color: Color) -> void:
+	var node := MeshInstance3D.new()
+	var mesh := SphereMesh.new()
+	mesh.radius = 0.5
+	mesh.height = 1.0
+	mesh.radial_segments = 12
+	mesh.rings = 6
+	node.mesh = mesh
+	node.position = pos
+	node.scale = size
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	node.material_override = mat
+	parent.add_child(node)
+
+func _spy_cylinder(parent: Node3D, pos: Vector3, radius: float, height: float, color: Color) -> void:
+	var node := MeshInstance3D.new()
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = radius
+	mesh.bottom_radius = radius
+	mesh.height = height
+	mesh.radial_segments = 18
+	node.mesh = mesh
+	node.position = pos
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	node.material_override = mat
+	parent.add_child(node)
+
+func _spy_beak(parent: Node3D, color: Color) -> void:
+	var node := MeshInstance3D.new()
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = 0.015
+	mesh.bottom_radius = 0.20
+	mesh.height = 0.68
+	mesh.radial_segments = 12
+	node.mesh = mesh
+	node.position = Vector3(0, 1.65, -0.51)
+	node.rotation_degrees.x = -90
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	node.material_override = mat
+	parent.add_child(node)
 
 func _make_camera() -> void:
 	follow_camera = Camera3D.new()
