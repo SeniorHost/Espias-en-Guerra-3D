@@ -40,8 +40,43 @@ func _process(delta: float) -> void:
 		desired = focus + (hit.position - focus).normalized() * maxf(0.35, focus.distance_to(hit.position) - 0.2)
 	follow_camera.global_position = follow_camera.global_position.lerp(desired, clampf(delta * camera_smoothing, 0.0, 1.0))
 	follow_camera.look_at(focus, Vector3.UP)
+	_animate_spy(player, delta)
+	_animate_spy(enemy, delta)
 	if is_instance_valid(joystick_knob):
 		joystick_knob.position = Vector2(joy.x, joy.y) * 42.0 + Vector2(49, 49)
+
+func _animate_spy(actor: CharacterBody3D, delta: float) -> void:
+	if not is_instance_valid(actor):
+		return
+	var visual := actor.get_node_or_null("SpyVisual") as Node3D
+	if visual == null:
+		return
+	var horizontal_speed := Vector2(actor.velocity.x, actor.velocity.z).length()
+	var moving := horizontal_speed > 0.12 and actor.is_on_floor()
+	var sneaking := horizontal_speed < 1.2
+	var walking := horizontal_speed < 3.2
+	var cadence := 3.2 if sneaking else (5.2 if walking else 8.5)
+	var amplitude := 0.24 if sneaking else (0.44 if walking else 0.75)
+	var time := float(actor.get_meta("step_clock", 0.0))
+	if moving:
+		time += delta * cadence
+	actor.set_meta("step_clock", time)
+	var weight := clampf(horizontal_speed / 1.5, 0.0, 1.0) if moving else 0.0
+	var stride := sin(time) * amplitude * weight
+	var arm_swing := stride * (0.35 if sneaking else 0.72)
+	var settle := clampf(delta * 12.0, 0.0, 1.0)
+	for name in ["LegL", "LegR", "ArmL", "ArmR"]:
+		var joint := visual.get_node_or_null(name) as Node3D
+		if joint == null:
+			continue
+		var side := 1.0 if name.ends_with("L") else -1.0
+		var target := stride * side if name.begins_with("Leg") else -arm_swing * side
+		joint.rotation.x = lerpf(joint.rotation.x, target, settle)
+	var crouch := -0.10 if moving and sneaking else 0.0
+	var bob := absf(sin(time)) * (0.025 if sneaking else (0.045 if walking else 0.075)) * weight
+	visual.position.y = lerpf(visual.position.y, crouch + bob, settle)
+	visual.rotation.z = lerpf(visual.rotation.z, sin(time) * 0.025 * weight, settle)
+	visual.rotation.x = lerpf(visual.rotation.x, -0.08 if moving and sneaking else 0.0, settle)
 
 func _make_world() -> void:
 	var light := DirectionalLight3D.new()
@@ -91,33 +126,33 @@ func _make_actor(color: Color, pos: Vector3, is_enemy: bool) -> CharacterBody3D:
 	visual.name = "SpyVisual"
 	actor.add_child(visual)
 	var coat := color
-	var detail := Color(0.17, 0.17, 0.20) if is_enemy else Color(0.95, 0.95, 0.91)
-	var skin := Color(0.94, 0.88, 0.78)
-	var ink := Color(0.06, 0.06, 0.07)
-	# Long stylized trench coat with split tails and broad shoulders.
-	_spy_part(visual, Vector3(0, 1.06, 0), Vector3(0.69, 0.91, 0.43), coat)
-	_spy_part(visual, Vector3(-0.19, 0.54, 0.04), Vector3(0.31, 0.43, 0.43), coat)
-	_spy_part(visual, Vector3(0.19, 0.54, 0.04), Vector3(0.31, 0.43, 0.43), coat)
-	_spy_part(visual, Vector3(-0.24, 1.32, -0.23), Vector3(0.28, 0.35, 0.05), detail)
-	_spy_part(visual, Vector3(0.24, 1.32, -0.23), Vector3(0.28, 0.35, 0.05), detail)
-	_spy_part(visual, Vector3(0, 1.17, -0.265), Vector3(0.10, 0.36, 0.035), ink if is_enemy else Color(0.16,0.16,0.17))
-	_spy_part(visual, Vector3(0, 0.83, -0.25), Vector3(0.70, 0.075, 0.06), detail)
-	for x in [-0.47, 0.47]:
-		_spy_part(visual, Vector3(x, 1.08, 0), Vector3(0.24, 0.75, 0.31), coat)
-		_spy_part(visual, Vector3(x, 0.65, 0), Vector3(0.24, 0.17, 0.29), detail)
-	for x in [-0.20, 0.20]:
-		_spy_part(visual, Vector3(x, 0.35, 0), Vector3(0.25, 0.66, 0.29), coat)
-		_spy_part(visual, Vector3(x, 0.12, -0.10), Vector3(0.30, 0.18, 0.47), detail)
-	# Rounded head, deep eye sockets, and exaggerated pointed mask.
-	_spy_ellipsoid(visual, Vector3(0, 1.72, -0.01), Vector3(0.49, 0.53, 0.47), skin)
+	var dark := Color(0.12, 0.12, 0.15)
+	var skin := Color(0.91, 0.85, 0.75)
+	var accent := Color(0.17, 0.17, 0.20) if is_enemy else Color(0.96, 0.96, 0.92)
+	# Smooth torso and coat, with articulated limbs and rounded silhouettes.
+	_spy_ellipsoid(visual, Vector3(0, 1.15, 0), Vector3(0.79, 1.05, 0.54), coat)
+	_spy_ellipsoid(visual, Vector3(0, 0.73, 0.06), Vector3(0.80, 0.54, 0.56), coat)
+	for side in [-1.0, 1.0]:
+		var arm := Node3D.new()
+		arm.name = "ArmL" if side < 0.0 else "ArmR"
+		arm.position = Vector3(side * 0.42, 1.42, 0)
+		visual.add_child(arm)
+		_spy_ellipsoid(arm, Vector3(side * 0.04, -0.31, 0), Vector3(0.27, 0.70, 0.30), coat)
+		_spy_ellipsoid(arm, Vector3(side * 0.05, -0.68, -0.02), Vector3(0.26, 0.22, 0.29), accent)
+		var leg := Node3D.new()
+		leg.name = "LegL" if side < 0.0 else "LegR"
+		leg.position = Vector3(side * 0.20, 0.75, 0)
+		visual.add_child(leg)
+		_spy_ellipsoid(leg, Vector3(0, -0.31, 0), Vector3(0.29, 0.67, 0.31), coat)
+		_spy_ellipsoid(leg, Vector3(0, -0.65, -0.12), Vector3(0.31, 0.20, 0.50), accent)
+	_spy_ellipsoid(visual, Vector3(0, 1.72, 0), Vector3(0.50, 0.55, 0.49), skin)
 	for x in [-0.14, 0.14]:
-		_spy_ellipsoid(visual, Vector3(x, 1.79, -0.235), Vector3(0.16, 0.18, 0.10), ink)
-		_spy_ellipsoid(visual, Vector3(x, 1.79, -0.303), Vector3(0.055, 0.07, 0.03), detail)
+		_spy_ellipsoid(visual, Vector3(x, 1.79, -0.235), Vector3(0.16, 0.18, 0.10), dark)
 	_spy_beak(visual, skin)
-	# Distinctive wide-brim hat, cylindrical crown, dark hatband.
-	_spy_cylinder(visual, Vector3(0, 2.07, 0), 0.62, 0.075, coat)
+	_spy_cylinder(visual, Vector3(0, 2.08, 0), 0.62, 0.075, coat)
 	_spy_cylinder(visual, Vector3(0, 2.23, 0), 0.34, 0.30, coat)
-	_spy_cylinder(visual, Vector3(0, 2.14, 0), 0.348, 0.075, detail)
+	_spy_cylinder(visual, Vector3(0, 2.14, 0), 0.348, 0.075, accent)
+	_spy_ellipsoid(visual, Vector3(0, 1.14, -0.29), Vector3(0.11, 0.38, 0.05), accent)
 	var collider := CollisionShape3D.new()
 	var shape := CapsuleShape3D.new()
 	shape.radius = 0.42
