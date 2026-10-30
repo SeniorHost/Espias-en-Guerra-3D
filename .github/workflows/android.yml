@@ -37,7 +37,9 @@ jobs:
         run: |
           mkdir -p build
           cp "$HOME/.android/debug.keystore" "$GITHUB_WORKSPACE/debug.keystore"
-          ./Godot_v4.3-stable_linux.x86_64 --headless --path . --export-debug Android build/Espias-en-Guerra-debug.apk
+          echo "SDK=$ANDROID_HOME JAVA=$JAVA_HOME"
+          ls -l "$ANDROID_HOME/platform-tools/adb" "$ANDROID_HOME/build-tools/35.0.0/apksigner" "$JAVA_HOME/bin/java"
+          ./Godot_v4.3-stable_linux.x86_64 --headless --verbose --path . --export-debug Android build/Espias-en-Guerra-debug.apk
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
