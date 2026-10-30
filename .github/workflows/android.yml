@@ -30,6 +30,8 @@ jobs:
       - name: Export Android APK
         env:
           GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ github.workspace }}/debug.keystore
+          GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
+          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
         run: |
           mkdir -p build
           cp "$HOME/.android/debug.keystore" "$GITHUB_WORKSPACE/debug.keystore"
