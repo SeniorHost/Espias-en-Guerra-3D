@@ -54,7 +54,7 @@ func _animate_spy(actor: CharacterBody3D, delta: float) -> void:
 	var speed := Vector2(actor.velocity.x, actor.velocity.z).length()
 	var grounded := actor.is_on_floor()
 	var moving := speed > 0.12 and grounded
-	var sneak := speed < 1.2
+	var sneak := speed < 1.25
 	var walk := speed < 3.2
 	var cadence := 3.0 if sneak else (5.5 if walk else 9.0)
 	var amplitude := 0.26 if sneak else (0.48 if walk else 0.83)
@@ -74,7 +74,7 @@ func _animate_spy(actor: CharacterBody3D, delta: float) -> void:
 			leg.rotation.x = lerpf(leg.rotation.x, hip_angle, blend)
 			var knee := leg.get_node_or_null("Knee") as Node3D
 			if knee != null:
-				var knee_bend := maxf(0.0, -step) * (0.55 if sneak else 0.90) * weight if grounded else 0.70
+				var knee_bend := maxf(0.0, -step) * (0.75 if sneak else 1.0) * weight if grounded else 0.70
 				knee.rotation.x = lerpf(knee.rotation.x, knee_bend, blend)
 				var foot := knee.get_node_or_null("Foot") as Node3D
 				if foot != null:
@@ -90,6 +90,13 @@ func _animate_spy(actor: CharacterBody3D, delta: float) -> void:
 	visual.position.y = lerpf(visual.position.y, crouch + bob if grounded else 0.0, blend)
 	visual.rotation.x = lerpf(visual.rotation.x, -0.11 if moving and sneak else (0.08 if not grounded else 0.0), blend)
 	visual.rotation.z = lerpf(visual.rotation.z, sin(phase) * 0.025 * weight, blend)
+	for tail_name in ["TailL", "TailR"]:
+		var tail := visual.get_node_or_null(tail_name) as Node3D
+		if tail != null:
+			var sway := 0.08 * sin(phase - 0.7) * weight
+			tail.rotation.x = lerpf(tail.rotation.x, sway + clampf(speed / 5.5, 0.0, 1.0) * 0.15, blend)
+	# The actor collision stays controlled by CharacterBody3D; limbs are visual joints.
+
 
 func _make_world() -> void:
 	var light := DirectionalLight3D.new()
@@ -139,12 +146,12 @@ func _make_actor(color: Color, pos: Vector3, is_enemy: bool) -> CharacterBody3D:
 	visual.name = "SpyVisual"
 	actor.add_child(visual)
 	var coat := color
-	var dark := Color(0.12, 0.12, 0.15)
-	var skin := Color(0.91, 0.85, 0.75)
-	var accent := Color(0.17, 0.17, 0.20) if is_enemy else Color(0.96, 0.96, 0.92)
+	var dark := Color(0.055, 0.055, 0.065)
+	var skin := Color(0.91, 0.91, 0.92) if is_enemy else Color(0.98, 0.98, 0.94)
+	var accent := Color(0.045, 0.045, 0.055) if is_enemy else Color(0.75, 0.76, 0.78)
 	# Smooth torso and coat, with articulated limbs and rounded silhouettes.
-	_spy_ellipsoid(visual, Vector3(0, 1.15, 0), Vector3(0.79, 1.05, 0.54), coat)
-	_spy_ellipsoid(visual, Vector3(0, 0.73, 0.06), Vector3(0.80, 0.54, 0.56), coat)
+	_spy_ellipsoid(visual, Vector3(0, 1.15, 0), Vector3(0.76, 1.05, 0.54), coat)
+	_spy_ellipsoid(visual, Vector3(0, 0.73, 0.06), Vector3(0.79, 0.54, 0.56), coat)
 	for side in [-1.0, 1.0]:
 		var arm := Node3D.new()
 		arm.name = "ArmL" if side < 0.0 else "ArmR"
@@ -172,7 +179,19 @@ func _make_actor(color: Color, pos: Vector3, is_enemy: bool) -> CharacterBody3D:
 		foot.position = Vector3(0, -0.34, 0)
 		knee.add_child(foot)
 		_spy_ellipsoid(foot, Vector3(0, -0.02, -0.13), Vector3(0.32, 0.18, 0.49), accent)
+	# Narrow spy face and exaggerated long nose, plus coat lapels and swinging tails.
 	_spy_ellipsoid(visual, Vector3(0, 1.72, 0), Vector3(0.50, 0.55, 0.49), skin)
+	for side in [-1.0, 1.0]:
+		var lapel := Node3D.new()
+		lapel.position = Vector3(side * 0.18, 1.32, -0.255)
+		lapel.rotation.z = side * 0.23
+		visual.add_child(lapel)
+		_spy_ellipsoid(lapel, Vector3.ZERO, Vector3(0.22, 0.46, 0.09), accent)
+		var tail := Node3D.new()
+		tail.name = "TailL" if side < 0.0 else "TailR"
+		tail.position = Vector3(side * 0.20, 0.78, 0.13)
+		visual.add_child(tail)
+		_spy_ellipsoid(tail, Vector3(0, -0.27, 0.06), Vector3(0.36, 0.60, 0.35), coat)
 	for x in [-0.14, 0.14]:
 		_spy_ellipsoid(visual, Vector3(x, 1.79, -0.235), Vector3(0.16, 0.18, 0.10), dark)
 	_spy_beak(visual, skin)
@@ -206,8 +225,8 @@ func _spy_ellipsoid(parent: Node3D, pos: Vector3, size: Vector3, color: Color) -
 	var mesh := SphereMesh.new()
 	mesh.radius = 0.5
 	mesh.height = 1.0
-	mesh.radial_segments = 12
-	mesh.rings = 6
+	mesh.radial_segments = 24
+	mesh.rings = 12
 	node.mesh = mesh
 	node.position = pos
 	node.scale = size
@@ -222,7 +241,7 @@ func _spy_cylinder(parent: Node3D, pos: Vector3, radius: float, height: float, c
 	mesh.top_radius = radius
 	mesh.bottom_radius = radius
 	mesh.height = height
-	mesh.radial_segments = 18
+	mesh.radial_segments = 28
 	node.mesh = mesh
 	node.position = pos
 	var mat := StandardMaterial3D.new()
@@ -233,12 +252,12 @@ func _spy_cylinder(parent: Node3D, pos: Vector3, radius: float, height: float, c
 func _spy_beak(parent: Node3D, color: Color) -> void:
 	var node := MeshInstance3D.new()
 	var mesh := CylinderMesh.new()
-	mesh.top_radius = 0.015
-	mesh.bottom_radius = 0.20
-	mesh.height = 0.68
+	mesh.top_radius = 0.012
+	mesh.bottom_radius = 0.16
+	mesh.height = 0.82
 	mesh.radial_segments = 12
 	node.mesh = mesh
-	node.position = Vector3(0, 1.65, -0.51)
+	node.position = Vector3(0, 1.66, -0.56)
 	node.rotation_degrees.x = -90
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = color
