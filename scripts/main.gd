@@ -51,32 +51,45 @@ func _animate_spy(actor: CharacterBody3D, delta: float) -> void:
 	var visual := actor.get_node_or_null("SpyVisual") as Node3D
 	if visual == null:
 		return
-	var horizontal_speed := Vector2(actor.velocity.x, actor.velocity.z).length()
-	var moving := horizontal_speed > 0.12 and actor.is_on_floor()
-	var sneaking := horizontal_speed < 1.2
-	var walking := horizontal_speed < 3.2
-	var cadence := 3.2 if sneaking else (5.2 if walking else 8.5)
-	var amplitude := 0.24 if sneaking else (0.44 if walking else 0.75)
-	var time := float(actor.get_meta("step_clock", 0.0))
+	var speed := Vector2(actor.velocity.x, actor.velocity.z).length()
+	var grounded := actor.is_on_floor()
+	var moving := speed > 0.12 and grounded
+	var sneak := speed < 1.2
+	var walk := speed < 3.2
+	var cadence := 3.0 if sneak else (5.5 if walk else 9.0)
+	var amplitude := 0.26 if sneak else (0.48 if walk else 0.83)
+	var phase := float(actor.get_meta("step_clock", 0.0))
 	if moving:
-		time += delta * cadence
-	actor.set_meta("step_clock", time)
-	var weight := clampf(horizontal_speed / 1.5, 0.0, 1.0) if moving else 0.0
-	var stride := sin(time) * amplitude * weight
-	var arm_swing := stride * (0.35 if sneaking else 0.72)
-	var settle := clampf(delta * 12.0, 0.0, 1.0)
-	for name in ["LegL", "LegR", "ArmL", "ArmR"]:
-		var joint := visual.get_node_or_null(name) as Node3D
-		if joint == null:
-			continue
-		var side := 1.0 if name.ends_with("L") else -1.0
-		var target := stride * side if name.begins_with("Leg") else -arm_swing * side
-		joint.rotation.x = lerpf(joint.rotation.x, target, settle)
-	var crouch := -0.10 if moving and sneaking else 0.0
-	var bob := absf(sin(time)) * (0.025 if sneaking else (0.045 if walking else 0.075)) * weight
-	visual.position.y = lerpf(visual.position.y, crouch + bob, settle)
-	visual.rotation.z = lerpf(visual.rotation.z, sin(time) * 0.025 * weight, settle)
-	visual.rotation.x = lerpf(visual.rotation.x, -0.08 if moving and sneaking else 0.0, settle)
+		phase += delta * cadence
+	actor.set_meta("step_clock", phase)
+	var weight := clampf(speed / 1.5, 0.0, 1.0) if moving else 0.0
+	var blend := clampf(delta * 11.0, 0.0, 1.0)
+	for side_name in ["L", "R"]:
+		var sign := 1.0 if side_name == "L" else -1.0
+		var step := sin(phase) * sign
+		var leg := visual.get_node_or_null("Leg" + side_name) as Node3D
+		var arm := visual.get_node_or_null("Arm" + side_name) as Node3D
+		if leg != null:
+			var hip_angle := step * amplitude * weight if grounded else -0.32
+			leg.rotation.x = lerpf(leg.rotation.x, hip_angle, blend)
+			var knee := leg.get_node_or_null("Knee") as Node3D
+			if knee != null:
+				var knee_bend := maxf(0.0, -step) * (0.55 if sneak else 0.90) * weight if grounded else 0.70
+				knee.rotation.x = lerpf(knee.rotation.x, knee_bend, blend)
+				var foot := knee.get_node_or_null("Foot") as Node3D
+				if foot != null:
+					foot.rotation.x = lerpf(foot.rotation.x, -0.3 * step * weight if grounded else -0.15, blend)
+		if arm != null:
+			var swing := -step * amplitude * (0.35 if sneak else 0.75) * weight if grounded else -0.65
+			arm.rotation.x = lerpf(arm.rotation.x, swing, blend)
+			var elbow := arm.get_node_or_null("Elbow") as Node3D
+			if elbow != null:
+				elbow.rotation.x = lerpf(elbow.rotation.x, -0.35 if sneak else (-0.55 if not grounded else -0.18), blend)
+	var crouch := -0.11 if moving and sneak else 0.0
+	var bob := absf(sin(phase)) * (0.02 if sneak else (0.04 if walk else 0.065)) * weight
+	visual.position.y = lerpf(visual.position.y, crouch + bob if grounded else 0.0, blend)
+	visual.rotation.x = lerpf(visual.rotation.x, -0.11 if moving and sneak else (0.08 if not grounded else 0.0), blend)
+	visual.rotation.z = lerpf(visual.rotation.z, sin(phase) * 0.025 * weight, blend)
 
 func _make_world() -> void:
 	var light := DirectionalLight3D.new()
@@ -137,14 +150,28 @@ func _make_actor(color: Color, pos: Vector3, is_enemy: bool) -> CharacterBody3D:
 		arm.name = "ArmL" if side < 0.0 else "ArmR"
 		arm.position = Vector3(side * 0.42, 1.42, 0)
 		visual.add_child(arm)
-		_spy_ellipsoid(arm, Vector3(side * 0.04, -0.31, 0), Vector3(0.27, 0.70, 0.30), coat)
-		_spy_ellipsoid(arm, Vector3(side * 0.05, -0.68, -0.02), Vector3(0.26, 0.22, 0.29), accent)
+		_spy_ellipsoid(arm, Vector3(0, -0.18, 0), Vector3(0.29, 0.42, 0.32), coat)
+		var elbow := Node3D.new()
+		elbow.name = "Elbow"
+		elbow.position = Vector3(0, -0.37, 0)
+		arm.add_child(elbow)
+		_spy_ellipsoid(elbow, Vector3(0, -0.17, 0), Vector3(0.24, 0.40, 0.27), coat)
+		_spy_ellipsoid(elbow, Vector3(0, -0.38, 0), Vector3(0.25, 0.20, 0.29), accent)
 		var leg := Node3D.new()
 		leg.name = "LegL" if side < 0.0 else "LegR"
 		leg.position = Vector3(side * 0.20, 0.75, 0)
 		visual.add_child(leg)
-		_spy_ellipsoid(leg, Vector3(0, -0.31, 0), Vector3(0.29, 0.67, 0.31), coat)
-		_spy_ellipsoid(leg, Vector3(0, -0.65, -0.12), Vector3(0.31, 0.20, 0.50), accent)
+		_spy_ellipsoid(leg, Vector3(0, -0.17, 0), Vector3(0.30, 0.42, 0.33), coat)
+		var knee := Node3D.new()
+		knee.name = "Knee"
+		knee.position = Vector3(0, -0.36, 0)
+		leg.add_child(knee)
+		_spy_ellipsoid(knee, Vector3(0, -0.16, 0), Vector3(0.26, 0.40, 0.29), coat)
+		var foot := Node3D.new()
+		foot.name = "Foot"
+		foot.position = Vector3(0, -0.34, 0)
+		knee.add_child(foot)
+		_spy_ellipsoid(foot, Vector3(0, -0.02, -0.13), Vector3(0.32, 0.18, 0.49), accent)
 	_spy_ellipsoid(visual, Vector3(0, 1.72, 0), Vector3(0.50, 0.55, 0.49), skin)
 	for x in [-0.14, 0.14]:
 		_spy_ellipsoid(visual, Vector3(x, 1.79, -0.235), Vector3(0.16, 0.18, 0.10), dark)
