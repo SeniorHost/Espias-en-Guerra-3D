@@ -25,6 +25,8 @@ jobs:
         run: |
           mkdir -p "$HOME/.android"
           keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+      - name: Configure Godot Android SDK paths
+        run: ./Godot_v4.3-stable_linux.x86_64 --headless --editor --path . --script res://ci/configure_android.gd
       - name: Import project
         run: ./Godot_v4.3-stable_linux.x86_64 --headless --path . --editor --quit
       - name: Export Android APK
