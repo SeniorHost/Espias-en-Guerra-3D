@@ -24,6 +24,7 @@ jobs:
           sdkmanager --install "platforms;android-35" "build-tools;35.0.0" "platform-tools"
       - name: Create debug keystore
         run: |
+          mkdir -p "$HOME/.android"
           keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
       - name: Import project
         run: ./Godot_v4.3-stable_linux.x86_64 --headless --path . --editor --quit
@@ -32,6 +33,7 @@ jobs:
           GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ github.workspace }}/debug.keystore
         run: |
           mkdir -p build
+          cp "$HOME/.android/debug.keystore" "$GITHUB_WORKSPACE/debug.keystore"
           ./Godot_v4.3-stable_linux.x86_64 --headless --path . --export-debug Android build/Espias-en-Guerra-debug.apk
       - name: Upload APK
         uses: actions/upload-artifact@v4
